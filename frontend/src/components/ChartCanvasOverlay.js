@@ -71,6 +71,10 @@ export default function ChartCanvasOverlay({
       fabricRef.current.setWidth(width);
       fabricRef.current.setHeight(height);
       fabricRef.current.renderAll();
+      if (canvasRef.current) {
+        canvasRef.current.style.width = `${width}px`;
+        canvasRef.current.style.height = `${height}px`;
+      }
     }
   }, [width, height]);
 
@@ -348,6 +352,8 @@ export default function ChartCanvasOverlay({
     <canvas
       ref={canvasRef}
       className="absolute inset-0 pointer-events-auto"
+      width={width}
+      height={height}
       style={{ zIndex: 10 }}
     />
   );

@@ -1,9 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TrendingUp, TrendingDown, ChevronLeft, MessageSquare, Moon, User, Search, LayoutGrid, ShoppingCart, Briefcase, Target, Gavel, Wallet, FileText, LogOut, Settings, Bell, Maximize2, MoreVertical } from 'lucide-react';
 import CandlestickChart from '../components/CandlestickChart';
-import ChartDrawToolbar from '../components/ChartDrawToolbar';
-import ChartCanvasOverlay from '../components/ChartCanvasOverlay';
+
+const CHART_TIMEFRAMES = [
+  { id: '1m', label: '1m', period: '1mo', interval: '1d' },
+  { id: '3m', label: '3m', period: '3mo', interval: '1d' },
+  { id: '6m', label: '6m', period: '6mo', interval: '1d' },
+  { id: '1y', label: '1y', period: '1y', interval: '1wk' },
+  { id: '5y', label: '5y', period: '5y', interval: '1wk' },
+  { id: 'max', label: 'Max', period: 'max', interval: '1mo' },
+];
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -16,10 +23,7 @@ const StockPage = () => {
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('chart');
-  const [activeDrawTool, setActiveDrawTool] = useState('select');
-  const [annotations, setAnnotations] = useState([]);
-  const [chartDimensions, setChartDimensions] = useState({ width: 0, height: 0 });
-  const chartContainerRef = useRef(null);
+  const [selectedTimeframe, setSelectedTimeframe] = useState(CHART_TIMEFRAMES[0]);
 
   const getShort = (s) => s.replace('.NS','').replace('.BO','');
 
@@ -67,56 +71,6 @@ const StockPage = () => {
     fetchData();
   }, [symbol]);
 
-  // Load annotations from localStorage when symbol changes
-  useEffect(() => {
-    if (symbol) {
-      try {
-        const saved = localStorage.getItem(`annotations_${symbol}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setAnnotations(parsed);
-        } else {
-          setAnnotations([]);
-        }
-      } catch (e) {
-        console.error('Error loading annotations:', e);
-        setAnnotations([]);
-      }
-    }
-  }, [symbol]);
-
-  // Measure chart container dimensions
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (chartContainerRef.current) {
-        const rect = chartContainerRef.current.getBoundingClientRect();
-        setChartDimensions({
-          width: rect.width,
-          height: rect.height || 600,
-        });
-      }
-    };
-
-    updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    // Use ResizeObserver to detect container size changes
-    let resizeObserver;
-    if (chartContainerRef.current && window.ResizeObserver) {
-      resizeObserver = new ResizeObserver(updateDimensions);
-      resizeObserver.observe(chartContainerRef.current);
-    }
-    // Also update after a short delay to ensure chart is rendered
-    const timeout = setTimeout(updateDimensions, 100);
-
-    return () => {
-      window.removeEventListener('resize', updateDimensions);
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-      clearTimeout(timeout);
-    };
-  }, [activeTab, symbol]);
-
   const navItems = [
     { icon: LayoutGrid, label: 'WATCHLIST', active: true },
     { icon: ShoppingCart, label: 'ORDERS' },
@@ -129,7 +83,7 @@ const StockPage = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-white overflow-hidden">
+    <div className="flex h-screen bg-[#0a0a0a] text-white overflow-x-hidden overflow-y-auto">
       {/* Sidebar */}
       <div className="bg-[#0a0a0a] border-r border-gray-800 flex transition-all duration-300">
         {/* Navigation Icons - Left Side */}
@@ -223,7 +177,7 @@ const StockPage = () => {
           </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Header */}
         <header className="bg-[#0a0a0a] border-b border-gray-800 px-4 py-2">
           <div className="flex items-center justify-between">
@@ -307,7 +261,7 @@ const StockPage = () => {
         </header>
 
         {/* Chart Area */}
-        <div className="flex-1 bg-[#0a0a0a] flex flex-col">
+        <div className="flex-1 min-h-0 bg-[#0a0a0a] flex flex-col overflow-hidden">
           {/* Tab Navigation */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
             <div className="flex items-center gap-4">
@@ -375,8 +329,21 @@ const StockPage = () => {
           {/* Chart Tools */}
           <div className="flex items-center justify-between px-4 py-2 bg-[#0f0f0f] border-b border-gray-800">
             <div className="flex items-center gap-3">
-              <button className="px-3 py-1 bg-gray-800 rounded text-xs">1m</button>
-              <button className="px-3 py-1 hover:bg-gray-800 rounded text-xs text-gray-400">3m</button>
+              <div className="flex items-center gap-2">
+                {CHART_TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.id}
+                    onClick={() => setSelectedTimeframe(tf)}
+                    className={`px-3 py-1 rounded text-xs transition ${
+                      selectedTimeframe.id === tf.id
+                        ? 'bg-cyan-600 text-white'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
               <button className="px-2 py-1 hover:bg-gray-800 rounded">
                 <TrendingUp size={14} />
               </button>
@@ -393,42 +360,14 @@ const StockPage = () => {
           </div>
 
           {/* Chart */}
-          <div 
-            ref={chartContainerRef}
-            className="flex-1 relative bg-[#0a0a0a] chart-container overflow-hidden"
-          >
-            {/* Toolbar - positioned relative to outer container, won't move with chart */}
-            {activeTab === 'chart' && (
-              <div 
-                className="absolute"
-                style={{ 
-                  left: '16px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)',
-                  zIndex: 100,
-                  pointerEvents: 'auto',
-                  position: 'absolute'
-                }}
-              >
-                <ChartDrawToolbar
-                  activeTool={activeDrawTool}
-                  onSelectTool={setActiveDrawTool}
-                />
-              </div>
-            )}
+          <div className="flex-1 min-h-0 relative bg-[#0a0a0a] chart-container overflow-hidden">
             {activeTab === 'chart' ? (
-              <div className="h-full relative w-full" style={{ position: 'relative' }}>
-                <CandlestickChart symbol={symbol} />
-                {chartDimensions.width > 0 && chartDimensions.height > 0 && (
-                  <ChartCanvasOverlay
-                    width={chartDimensions.width}
-                    height={chartDimensions.height}
-                    activeTool={activeDrawTool}
-                    annotations={annotations}
-                    setAnnotations={setAnnotations}
-                    symbol={symbol}
-                  />
-                )}
+              <div className="h-full relative w-full">
+                <CandlestickChart
+                  symbol={symbol}
+                  period={selectedTimeframe.period}
+                  interval={selectedTimeframe.interval}
+                />
               </div>
             ) : (
               <div className="p-6 text-gray-400">
